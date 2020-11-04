@@ -105,7 +105,7 @@ int main(int argc, char const *argv[]) {
         continue;
       }
     }
-
+/* vscode://vscode.github-authentication/did-authenticate?windowid=1&code=4103db2fe87044f2e99e&state=bf6a07aa-0463-45fc-b744-097a721991dd */
     Statement statement;
     switch (prepared_statement(input_buffer, &statement)) {
       /* 之前的状态成功 */

@@ -1,0 +1,3 @@
+/home/adl/桌面/mysqlite/build/CMakeFiles/rebuild_cache.dir
+/home/adl/桌面/mysqlite/build/CMakeFiles/mysqlite.dir
+/home/adl/桌面/mysqlite/build/CMakeFiles/edit_cache.dir

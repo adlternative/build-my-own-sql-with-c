@@ -1,4 +1,4 @@
-// #include "state.h"
+
 #include <errno.h>
 #include <fcntl.h>
 #include <stdbool.h>
@@ -8,9 +8,10 @@
 #include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include"state.h"
-#include"page_table.h"
 
+#include "b-tree.h"
+#include "page_table.h"
+#include "state.h"
 typedef struct {
   char *buffer;
   size_t buffer_length;
@@ -77,22 +78,25 @@ PrepareResult prepare_insert(InputBuffer *input_buffer, Statement *statement) {
     return PREPARE_STRING_TOO_LONG;
   }
   if (strlen(email) > COLUMN_EMAIL_SIZE) {
-    {
-      return PREPARE_STRING_TOO_LONG;
-    }
-    statement->row_to_insert.id = id;
-    strcpy(statement->row_to_insert.username, username);
-    strcpy(statement->row_to_insert.email, email);
-    return PREPARE_SUCCESS;
+
+    return PREPARE_STRING_TOO_LONG;
   }
+  statement->row_to_insert.id = id;
+  strcpy(statement->row_to_insert.username, username);
+  strcpy(statement->row_to_insert.email, email);
+  return PREPARE_SUCCESS;
 }
+
 PrepareResult prepare_statement(InputBuffer *input_buffer,
                                 Statement *statement) {
+
   /* 如果之前的状态是insert 那么statement的type 变为STATEMENT_INSERT
    *并返回PREPARE_SUCCESS
    */
+
   if (strncmp(input_buffer->buffer, "insert", 6) == 0) {
     return prepare_insert(input_buffer, statement);
+
     /*
         statement->type = STATEMENT_INSERT;
         int args_assigned = sscanf(
@@ -114,6 +118,15 @@ PrepareResult prepare_statement(InputBuffer *input_buffer,
   return PREPARE_UNRECOGNIZED_STATEMENT;
 }
 
+void print_constants() {
+  printf("ROW_SIZE: %ld\n", ROW_SIZE);
+  printf("COMMON_NODE_HEADER_SIZE: %ld\n", COMMON_NODE_HEADER_SIZE);
+  printf("LEAF_NODE_HEADER_SIZE: %ld\n", LEAF_NODE_HEADER_SIZE);
+  printf("LEAF_NODE_CELL_SIZE: %ld\n", LEAF_NODE_CELL_SIZE);
+  printf("LEAF_NODE_SPACE_FOR_CELLS: %ld\n", LEAF_NODE_SPACE_FOR_CELLS);
+  printf("LEAF_NODE_MAX_CELLS: %ld\n", LEAF_NODE_MAX_CELLS);
+}
+
 MetaCommandResult do_meta_command(InputBuffer *input_buffer, Table *table) {
   /* 元数据解析 */
   if (strcmp(input_buffer->buffer, ".exit") == 0) {
@@ -121,6 +134,14 @@ MetaCommandResult do_meta_command(InputBuffer *input_buffer, Table *table) {
     db_close(table);
     // free_table(table);
     exit(0);
+  } else if (strcmp(input_buffer->buffer, ".btree") == 0) {
+    printf("Tree:\n");
+    print_leaf_node(get_page(table->pager, 0));
+    return META_COMMAND_SUCCESS;
+  } else if (strcmp(input_buffer->buffer, ".constants") == 0) {
+    printf("Constants:\n");
+    print_constants();
+    return META_COMMAND_SUCCESS;
   } else {
     /* 返回元数据命令不认识 */
     return META_COMMAND_UNRECOGNIZED_COMMAND;
@@ -130,21 +151,36 @@ MetaCommandResult do_meta_command(InputBuffer *input_buffer, Table *table) {
 ExecuteResult execute_insert(Statement *statement, Table *table) {
 
   /* 如果行数超标，就意味着内存页写满了，那么insert失败 */
-  if (table->num_rows >= TABLE_MAX_ROWS) {
+  /* if (table->num_rows >= TABLE_MAX_ROWS) {
+    return EXECUTE_TABLE_FULL;
+  } */
+  void *node = get_page(table->pager, table->root_page_num);
+  /* 如果叶节点的单元数量满了 */
+  if ((*leaf_node_num_cells(node) >= LEAF_NODE_MAX_CELLS)) {
     return EXECUTE_TABLE_FULL;
   }
+  /* 获得statement中需要插入的row的信息 */
   Row *row_to_insert = &(statement->row_to_insert);
-  // printf("test:%d%s%s\n",row_to_insert->id,row_to_insert->username,row_to_insert->email);
-  serialize_row(row_to_insert, row_slot(table, table->num_rows));
-  table->num_rows += 1;
+  /* 看来是插入到该页的尾部*/
+  Cursor *cursor = table_end(table);
+
+  leaf_node_insert(cursor, row_to_insert->id, row_to_insert);
+  free(cursor);
   return EXECUTE_SUCCESS;
 }
 ExecuteResult execute_select(Statement *statement, Table *table) {
+  Cursor *cursor = table_start(table);
   Row row;
-  for (uint32_t i = 0; i < table->num_rows; i++) {
-    deserialize_row(row_slot(table, i), &row);
+  // for (uint32_t i = 0; i < table->num_rows; i++) {
+  //   deserialize_row(row_slot(table, i), &row);
+  //   print_row(&row);
+  // }
+  while (!(cursor->end_of_table)) {
+    deserialize_row(cursor_value(cursor), &row);
     print_row(&row);
+    cursor_advance(cursor);
   }
+  free(cursor);
   return EXECUTE_SUCCESS;
 }
 ExecuteResult execute_statement(Statement *statement, Table *table) {

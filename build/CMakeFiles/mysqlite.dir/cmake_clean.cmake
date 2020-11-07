@@ -2,6 +2,7 @@ file(REMOVE_RECURSE
   "CMakeFiles/mysqlite.dir/main.c.o"
   "CMakeFiles/mysqlite.dir/page_table.c.o"
   "CMakeFiles/mysqlite.dir/row.c.o"
+  "CMakeFiles/mysqlite.dir/b-tree.c.o"
   "mysqlite.pdb"
   "mysqlite"
 )

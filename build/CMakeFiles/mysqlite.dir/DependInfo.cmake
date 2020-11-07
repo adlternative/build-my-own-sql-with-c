@@ -4,6 +4,7 @@ set(CMAKE_DEPENDS_LANGUAGES
   )
 # The set of files for implicit dependencies of each language:
 set(CMAKE_DEPENDS_CHECK_C
+  "/home/adl/桌面/mysqlite/b-tree.c" "/home/adl/桌面/mysqlite/build/CMakeFiles/mysqlite.dir/b-tree.c.o"
   "/home/adl/桌面/mysqlite/main.c" "/home/adl/桌面/mysqlite/build/CMakeFiles/mysqlite.dir/main.c.o"
   "/home/adl/桌面/mysqlite/page_table.c" "/home/adl/桌面/mysqlite/build/CMakeFiles/mysqlite.dir/page_table.c.o"
   "/home/adl/桌面/mysqlite/row.c" "/home/adl/桌面/mysqlite/build/CMakeFiles/mysqlite.dir/row.c.o"

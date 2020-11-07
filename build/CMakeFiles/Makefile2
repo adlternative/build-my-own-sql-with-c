@@ -66,7 +66,7 @@ CMAKE_BINARY_DIR = /home/adl/桌面/mysqlite/build
 CMakeFiles/mysqlite.dir/all:
 	$(MAKE) -f CMakeFiles/mysqlite.dir/build.make CMakeFiles/mysqlite.dir/depend
 	$(MAKE) -f CMakeFiles/mysqlite.dir/build.make CMakeFiles/mysqlite.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --progress-dir=/home/adl/桌面/mysqlite/build/CMakeFiles --progress-num=1,2,3,4 "Built target mysqlite"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --progress-dir=/home/adl/桌面/mysqlite/build/CMakeFiles --progress-num=1,2,3,4,5 "Built target mysqlite"
 .PHONY : CMakeFiles/mysqlite.dir/all
 
 # Include target in all.
@@ -76,7 +76,7 @@ all: CMakeFiles/mysqlite.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/mysqlite.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/adl/桌面/mysqlite/build/CMakeFiles 4
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/adl/桌面/mysqlite/build/CMakeFiles 5
 	$(MAKE) -f CMakeFiles/Makefile2 CMakeFiles/mysqlite.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/adl/桌面/mysqlite/build/CMakeFiles 0
 .PHONY : CMakeFiles/mysqlite.dir/rule

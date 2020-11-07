@@ -1,4 +1,29 @@
 #include "page_table.h"
+#include "b-tree.h"
+
+Cursor *table_start(Table *table) {
+  /* 定位到table的root节点的0cell位置 */
+  Cursor *cursor = malloc(sizeof(Cursor));
+  cursor->table = table;
+  cursor->page_num = table->root_page_num; /* 当前节点的页码是根节点的页码 */
+  cursor->cell_num = 0;
+  void *root_node = get_page(table->pager, table->root_page_num);
+  uint32_t num_cells = *leaf_node_num_cells(root_node); /* 获得根节点上的kv数，
+      我觉得是root这里是保存整个树的cell数量对吗？   */
+  cursor->end_of_table = (num_cells == 0);
+  return cursor;
+}
+
+Cursor *table_end(Table *table) {
+  /* 定位到table的root节点的最后一个cell位置 */
+  Cursor *cursor = malloc(sizeof(Cursor));
+  cursor->table = table;
+  void *root_node = get_page(table->pager, table->root_page_num);
+  uint32_t num_cells = *leaf_node_num_cells(root_node); /* 获得根节点上的kv数 */
+  cursor->cell_num = num_cells; /* 定位为第num_cells个cell/最后一个cell */
+  cursor->end_of_table = true;
+  return cursor;
+}
 
 Pager *pager_open(const char *filename) {
   int fd = open(filename, O_RDWR | O_CREAT, 0644);
@@ -8,28 +33,62 @@ Pager *pager_open(const char *filename) {
   }
   off_t file_length = lseek(fd, 0, SEEK_END);
   Pager *pager = malloc(sizeof(Pager));
+  /* 可以看出来，这里pager_open只是为pager分配文件信息，
+   *页数，文件表述符，并没有进行读取
+   */
   pager->file_descriptor = fd;
   pager->file_length = file_length;
+  pager->num_pages = (file_length / PAGE_SIZE);
+  if (file_length % PAGE_SIZE != 0) {
+    printf("Db file is not a whole number of pages. Corrupt file.\n");
+    exit(1);
+  }
   for (uint32_t i = 0; i < TABLE_MAX_PAGES; i++) {
     pager->pages[i] = NULL;
   }
   return pager;
 }
-void *row_slot(Table *table, uint32_t row_num) {
-  /* 找到在内存中读/写特定行的位置 */
-  uint32_t page_num =
-      row_num / ROWS_PER_PAGE; /*第几页=想要寻找的行数/每页行数 */
-  // void *page = table->pages[page_num];
-  void *page = get_page(table->pager, page_num);
-  /*   if (page == NULL) {
-      page = table->pages[page_num] = malloc(PAGE_SIZE);
-    } */
-  uint32_t row_offset = row_num % ROWS_PER_PAGE; /* 此页第row_offset行 */
-  uint32_t byte_offset = row_offset * ROW_SIZE;  /* 偏移多少字节 */
-  return page + byte_offset; /* 寻找到需要寻址的位置了 */
+
+void cursor_advance(Cursor *cursor) {
+  /* 将游标向后移动1个cell */
+  uint32_t page_num = cursor->page_num;
+  void *node = get_page(cursor->table->pager, page_num);
+  cursor->cell_num += 1;
+  if (cursor->cell_num >= (*leaf_node_num_cells(node))) {
+    /*如果cell_num+1以后==当前叶节点最大cell_num,说明到了这个节点的末尾*/
+    cursor->end_of_table = true;
+  }
 }
 
-void pager_flush(Pager *pager, uint32_t page_num, uint32_t size) {
+void *cursor_value(Cursor *cursor) {
+  // uint32_t row_num = cursor->row_num;
+  // uint32_t page_num = row_num / ROWS_PER_PAGE;
+  uint32_t page_num = cursor->page_num;
+  void *page =
+      get_page(cursor->table->pager, page_num); /* 在页表中寻找第page_num页 */
+  return leaf_node_value(
+      page, cursor->cell_num); /* 从第page_num页返回第cell_num个cell上的value */
+}
+// void pager_flush(Pager *pager, uint32_t page_num, uint32_t size) {
+//   /* 将第 page_num 个页写入到文件page_num * PAGE_SIZE的位置，写入size大小 */
+//   if (pager->pages[page_num] == NULL) {
+//     printf("Tried to flush null page\n");
+//     exit(1);
+//   }
+//   off_t offset = lseek(pager->file_descriptor, page_num * PAGE_SIZE,
+//   SEEK_SET); if (offset == -1) {
+//     printf("Error seeking :%d\n", errno);
+//     exit(1);
+//   }
+//   ssize_t bytes_written =
+//       write(pager->file_descriptor, pager->pages[page_num], size);
+//   if (bytes_written == -1) {
+//     printf("Error writing:%d\n", errno);
+//     exit(1);
+//   }
+// }
+
+void pager_flush(Pager *pager, uint32_t page_num) {
   /* 将第 page_num 个页写入到文件page_num * PAGE_SIZE的位置，写入size大小 */
   if (pager->pages[page_num] == NULL) {
     printf("Tried to flush null page\n");
@@ -41,7 +100,7 @@ void pager_flush(Pager *pager, uint32_t page_num, uint32_t size) {
     exit(1);
   }
   ssize_t bytes_written =
-      write(pager->file_descriptor, pager->pages[page_num], size);
+      write(pager->file_descriptor, pager->pages[page_num], PAGE_SIZE);
   if (bytes_written == -1) {
     printf("Error writing:%d\n", errno);
     exit(1);
@@ -51,38 +110,47 @@ void pager_flush(Pager *pager, uint32_t page_num, uint32_t size) {
 Table *db_open(const char *filename) {
   /* Table *new_table()的重写 */
   Pager *pager = pager_open(filename);
-  uint32_t num_rows = pager->file_length / ROW_SIZE;
   Table *table = malloc(sizeof(Table));
   table->pager = pager;
-  table->num_rows = num_rows;
+  table->root_page_num = 0; /* 根页码初始为0 */
+
+  if (pager->num_pages == 0) {
+    /*
+     *如果读出来整个文件空的,
+     *那么获得malloc的空白页面，
+     *并将此页面的num_cells=0
+     */
+
+    void *root_node = get_page(pager, 0);
+    initialize_leaf_node(root_node); /* num_cells=0 */
+  }
   return table;
 }
 
 void db_close(Table *table) {
   Pager *pager = table->pager;
-  uint32_t num_full_pages =
-      table->num_rows / ROWS_PER_PAGE; /*算出内存table中的总页数*/
-  for (uint32_t i = 0; i < num_full_pages; i++) {
+  /* 将pager中所有行找出 */
+  for (uint32_t i = 0; i < pager->num_pages; i++) {
     /* 如果第i页是空的，continue */
     if (pager->pages[i] == NULL) {
       continue;
     }
     /* 否则将第i页写到磁盘 */
-    pager_flush(pager, i, PAGE_SIZE);
+    pager_flush(pager, i);
     /* 释放第i页 */
     free(pager->pages[i]);
     pager->pages[i] = NULL;
   }
-  uint32_t num_additional_rows = table->num_rows % ROWS_PER_PAGE;
-  if (num_additional_rows > 0) {
-    /* 额外的行数算在最后一页 */
-    uint32_t page_num = num_full_pages;
-    if (pager->pages[page_num] != NULL) {
-      pager_flush(pager, page_num, num_additional_rows * ROW_SIZE);
-      free(pager->pages[page_num]);
-      pager->pages[page_num] = NULL;
-    }
-  }
+  // uint32_t num_additional_rows = table->num_rows % ROWS_PER_PAGE;
+  // if (num_additional_rows > 0) {
+  //   /* 额外的行数算在最后一页 */
+  //   uint32_t page_num = num_full_pages;
+  //   if (pager->pages[page_num] != NULL) {
+  //     pager_flush(pager, page_num, num_additional_rows * ROW_SIZE);
+  //     free(pager->pages[page_num]);
+  //     pager->pages[page_num] = NULL;
+  //   }
+  // }
   int result = close(pager->file_descriptor);
   if (result == -1) {
     printf("Error close db file.\n");
@@ -129,6 +197,12 @@ void *get_page(Pager *pager, uint32_t page_num) {
     }
     /* 否则这个页是malloc出来的空页 */
     pager->pages[page_num] = page;
+    /* 如果现在我们申请的第page_num页>页管理器中记录的页数，
+     *将页管理器中记录的页数更新为page_num + 1
+     */
+    if (page_num >= pager->num_pages) {
+      pager->num_pages = page_num + 1;
+    }
   }
   return pager->pages[page_num];
 }

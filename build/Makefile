@@ -123,6 +123,33 @@ mysqlite/fast:
 	$(MAKE) -f CMakeFiles/mysqlite.dir/build.make CMakeFiles/mysqlite.dir/build
 .PHONY : mysqlite/fast
 
+b-tree.o: b-tree.c.o
+
+.PHONY : b-tree.o
+
+# target to build an object file
+b-tree.c.o:
+	$(MAKE) -f CMakeFiles/mysqlite.dir/build.make CMakeFiles/mysqlite.dir/b-tree.c.o
+.PHONY : b-tree.c.o
+
+b-tree.i: b-tree.c.i
+
+.PHONY : b-tree.i
+
+# target to preprocess a source file
+b-tree.c.i:
+	$(MAKE) -f CMakeFiles/mysqlite.dir/build.make CMakeFiles/mysqlite.dir/b-tree.c.i
+.PHONY : b-tree.c.i
+
+b-tree.s: b-tree.c.s
+
+.PHONY : b-tree.s
+
+# target to generate assembly for a file
+b-tree.c.s:
+	$(MAKE) -f CMakeFiles/mysqlite.dir/build.make CMakeFiles/mysqlite.dir/b-tree.c.s
+.PHONY : b-tree.c.s
+
 main.o: main.c.o
 
 .PHONY : main.o
@@ -213,6 +240,9 @@ help:
 	@echo "... rebuild_cache"
 	@echo "... mysqlite"
 	@echo "... edit_cache"
+	@echo "... b-tree.o"
+	@echo "... b-tree.i"
+	@echo "... b-tree.s"
 	@echo "... main.o"
 	@echo "... main.i"
 	@echo "... main.s"

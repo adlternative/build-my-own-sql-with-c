@@ -1,6 +1,10 @@
 
+#include "b-tree.h"
+#include "page_table.h"
+#include "state.h"
 #include <errno.h>
 #include <fcntl.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -8,10 +12,6 @@
 #include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
-
-#include "b-tree.h"
-#include "page_table.h"
-#include "state.h"
 typedef struct {
   char *buffer;
   size_t buffer_length;
@@ -126,7 +126,7 @@ void print_constants() {
   printf("LEAF_NODE_SPACE_FOR_CELLS: %ld\n", LEAF_NODE_SPACE_FOR_CELLS);
   printf("LEAF_NODE_MAX_CELLS: %ld\n", LEAF_NODE_MAX_CELLS);
 }
-
+/* insert 11 as as@qq.com */
 MetaCommandResult do_meta_command(InputBuffer *input_buffer, Table *table) {
   /* 元数据解析 */
   if (strcmp(input_buffer->buffer, ".exit") == 0) {
@@ -136,7 +136,7 @@ MetaCommandResult do_meta_command(InputBuffer *input_buffer, Table *table) {
     exit(0);
   } else if (strcmp(input_buffer->buffer, ".btree") == 0) {
     printf("Tree:\n");
-    print_leaf_node(get_page(table->pager, 0));
+    print_tree(table->pager,0,0);
     return META_COMMAND_SUCCESS;
   } else if (strcmp(input_buffer->buffer, ".constants") == 0) {
     printf("Constants:\n");
@@ -150,19 +150,25 @@ MetaCommandResult do_meta_command(InputBuffer *input_buffer, Table *table) {
 
 ExecuteResult execute_insert(Statement *statement, Table *table) {
 
-  /* 如果行数超标，就意味着内存页写满了，那么insert失败 */
-  /* if (table->num_rows >= TABLE_MAX_ROWS) {
-    return EXECUTE_TABLE_FULL;
-  } */
   void *node = get_page(table->pager, table->root_page_num);
   /* 如果叶节点的单元数量满了 */
-  if ((*leaf_node_num_cells(node) >= LEAF_NODE_MAX_CELLS)) {
+  uint32_t num_cells = *(leaf_node_num_cells(node));
+  /* if ((num_cells >= LEAF_NODE_MAX_CELLS)) {
     return EXECUTE_TABLE_FULL;
-  }
+  } */
   /* 获得statement中需要插入的row的信息 */
   Row *row_to_insert = &(statement->row_to_insert);
   /* 看来是插入到该页的尾部*/
-  Cursor *cursor = table_end(table);
+  // Cursor *cursor = table_end(table);
+
+  uint32_t key_to_insert = row_to_insert->id;
+  Cursor *cursor = table_find(table, key_to_insert);
+  if (cursor->cell_num < num_cells) {
+    uint32_t key_at_index = *leaf_node_key(node, cursor->cell_num);
+    if (key_at_index == key_to_insert) {
+      return EXECUTE_DUPLICATE_KEY;
+    }
+  }
 
   leaf_node_insert(cursor, row_to_insert->id, row_to_insert);
   free(cursor);
@@ -195,7 +201,7 @@ ExecuteResult execute_statement(Statement *statement, Table *table) {
 }
 
 int main(int argc, char const *argv[]) {
-
+  signal(SIGINT, SIG_IGN);
   // Table *table = new_table();
   if (argc < 2) {
     printf("Usage:Must supply a datebase filename.\n");
@@ -252,6 +258,9 @@ int main(int argc, char const *argv[]) {
     switch (execute_statement(&statement, table)) { /* 根据状态执行相应的行为 */
     case (EXECUTE_SUCCESS):
       printf("Executed.\n");
+      break;
+    case (EXECUTE_DUPLICATE_KEY):
+      printf("Error:Duplicate key.\n");
       break;
     case (EXECUTE_TABLE_FULL):
       printf("Error:Table full.\n");

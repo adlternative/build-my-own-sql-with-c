@@ -25,6 +25,43 @@ Cursor *table_end(Table *table) {
   return cursor;
 }
 
+Cursor *table_find(Table *table, uint32_t key) {
+  uint32_t root_page_num = table->root_page_num;
+  void *root_node = get_page(table->pager, root_page_num);
+  if (get_node_type(root_node) == NODE_LEAF) {
+    return leaf_node_find(table, root_page_num, key);
+  } else {
+    printf("Need to implement searching an internal leaf node.\n");
+    exit(1);
+  }
+}
+Cursor *leaf_node_find(Table *table, uint32_t page_num, uint32_t key) {
+  void *node = get_page(table->pager, page_num);
+  uint32_t num_cells = *leaf_node_num_cells(node);
+  Cursor *cursor = malloc(sizeof(Cursor));
+  cursor->table = table;
+  cursor->page_num = page_num;
+
+  /* 二分搜索 */
+  uint32_t min_index = 0;                  /* begin() */
+  uint32_t one_past_max_index = num_cells; /* 一个过去的最大cell坐标,end() */
+
+  while (one_past_max_index != min_index) {
+    uint32_t index = (min_index + one_past_max_index) / 2;
+    uint32_t key_at_index = *leaf_node_key(node, index);
+    if (key_at_index == key) {
+      cursor->cell_num = index;
+      return cursor;
+    }
+    if (key < key_at_index) {
+      one_past_max_index = index;
+    } else {
+      min_index = index + 1;
+    }
+  }
+  cursor->cell_num = min_index;
+  return cursor;
+}
 Pager *pager_open(const char *filename) {
   int fd = open(filename, O_RDWR | O_CREAT, 0644);
   if (fd == -1) {
@@ -123,6 +160,7 @@ Table *db_open(const char *filename) {
 
     void *root_node = get_page(pager, 0);
     initialize_leaf_node(root_node); /* num_cells=0 */
+    set_node_root(root_node, true);
   }
   return table;
 }

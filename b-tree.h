@@ -3,7 +3,11 @@
 #define B_TREE_H
 #include "page_table.h"
 #include "stdint.h"
-typedef enum { NODE_INTERVAL, NODE_LEFT } NodeType;
+#include "string.h"
+typedef enum {
+  NODE_INTERNAL,
+  NODE_LEAF,
+} NodeType;
 
 /*
  * Common Node Header Layout(头节点布局/头部说明信息)
@@ -41,6 +45,30 @@ typedef enum { NODE_INTERVAL, NODE_LEFT } NodeType;
 #define LEAF_NODE_MAX_CELLS                                                    \
   ((LEAF_NODE_SPACE_FOR_CELLS) / (LEAF_NODE_CELL_SIZE))
 
+#define LEAF_NODE_RIGHT_SPLIT_COUNT ((LEAF_NODE_MAX_CELLS + 1) / 2)
+#define LEAF_NODE_LEFT_SPLIT_COUNT                                             \
+  ((LEAF_NODE_MAX_CELLS + 1) - LEAF_NODE_RIGHT_SPLIT_COUNT)
+
+/*
+ * Internal Node Header Layout
+ */
+#define INTERNAL_NODE_NUM_KEYS_SIZE sizeof(uint32_t)
+#define INTERNAL_NODE_NUM_KEYS_OFFSET COMMON_NODE_HEADER_SIZE
+#define INTERNAL_NODE_RIGHT_CHILD_SIZE sizeof(uint32_t)
+#define INTERNAL_NODE_RIGHT_CHILD_OFFSET                                       \
+  ((INTERNAL_NODE_NUM_KEYS_OFFSET) + (INTERNAL_NODE_NUM_KEYS_SIZE))
+#define INTERNAL_NODE_HEADER_SIZE                                              \
+  ((COMMON_NODE_HEADER_SIZE) + (INTERNAL_NODE_NUM_KEYS_SIZE) +                 \
+   (INTERNAL_NODE_RIGHT_CHILD_SIZE))
+
+/*
+ * Internal Node Body Layout
+ */
+#define INTERNAL_NODE_KEY_SIZE sizeof(uint32_t)
+#define INTERNAL_NODE_CHILD_SIZE sizeof(uint32_t)
+#define INTERNAL_NODE_CELL_SIZE                                                \
+  ((INTERNAL_NODE_CHILD_SIZE) + (INTERNAL_NODE_KEY_SIZE))
+
 uint32_t *leaf_node_num_cells(void *node);
 void *leaf_node_cell(void *node, uint32_t cell_num);
 uint32_t *leaf_node_key(void *node, uint32_t cell_num);
@@ -48,4 +76,18 @@ void *leaf_node_value(void *node, uint32_t cell_num);
 void initialize_leaf_node(void *node);
 void leaf_node_insert(Cursor *cursor, uint32_t key, Row *value);
 void print_leaf_node(void *node);
+void set_node_root(void *node, bool is_root);
+bool is_node_root(void *node);
+void set_node_type(void *node, NodeType type);
+NodeType get_node_type(void *node);
+void create_new_root(Table *table, uint32_t right_child_page_num);
+void leaf_node_split_and_insert(Cursor *cursor, uint32_t key, Row *value);
+uint32_t *internal_node_num_keys(void *node);
+uint32_t *internal_node_right_child(void *node);
+uint32_t *internal_node_child(void *node, uint32_t child_num);
+uint32_t *internal_node_key(void *node, uint32_t key_num);
+uint32_t get_node_max_key(void *node);
+
+void indent(uint32_t level);
+void print_tree(Pager *pager, uint32_t page_num, uint32_t indentation_level);
 #endif

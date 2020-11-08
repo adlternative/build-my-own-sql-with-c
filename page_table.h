@@ -24,7 +24,7 @@ typedef struct {
 } Pager;
 
 typedef struct {
-  Pager *pager; /* 页管理器 */
+  Pager *pager;           /* 页管理器 */
   uint32_t root_page_num; /* 根节点页码 */
 } Table;
 
@@ -37,12 +37,14 @@ typedef struct {
  */
 typedef struct {
   Table *table;
-  uint32_t page_num;/* 节点的页码 */
-  uint32_t cell_num;/* 节点中的单元号 */
-  bool end_of_table;/* 是否到表底了 */
+  uint32_t page_num; /* 节点的页码 */
+  uint32_t cell_num; /* 节点中的单元号 */
+  bool end_of_table; /* 是否到表底了 */
 } Cursor;
 Cursor *table_start(Table *table);
 Cursor *table_end(Table *table);
+Cursor *table_find(Table *table, uint32_t key);
+Cursor *leaf_node_find(Table *table, uint32_t page_num, uint32_t key);
 void cursor_advance(Cursor *cursor);
 void *cursor_value(Cursor *cursor);
 
@@ -52,4 +54,5 @@ void db_close(Table *table);
 void *get_page(Pager *pager, uint32_t page_num);
 void *row_slot(Table *table, uint32_t row_num);
 void pager_flush(Pager *pager, uint32_t page_num);
+
 #endif

@@ -9,6 +9,7 @@
 typedef enum {
   EXECUTE_SUCCESS,    /* 成功哦你 */
   EXECUTE_TABLE_FULL, /* 表满 */
+  EXECUTE_DUPLICATE_KEY,/* 重复的键（主键:id） */
 } ExecuteResult;      /* 执行的结果 */
 
 typedef enum {

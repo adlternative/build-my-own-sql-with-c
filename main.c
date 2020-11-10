@@ -19,7 +19,7 @@ typedef struct {
 } InputBuffer;
 
 InputBuffer *new_input_buffer() {
-  /*仅仅是初始化了一个结构体  */
+  /*仅仅是初始化了一个结构体，接着我们输入要用它  */
   InputBuffer *input_buffer = (InputBuffer *)malloc(sizeof(InputBuffer));
   input_buffer->buffer = NULL;
   input_buffer->buffer_length = 0;
@@ -42,10 +42,6 @@ void read_input(InputBuffer *input_buffer) {
   /* 读取终端输入 */
   /* longint */ ssize_t bytes_read =
       getline(&(input_buffer->buffer), &(input_buffer->buffer_length), stdin);
-  /* if (input_buffer->buffer[bytes_read - 1] == '\n') {
-    printf("yes\n");
-  } */
-
   /* 如果读取到的数量<0，则出错且退出 */
   if (bytes_read < 0) {
     printf("Error reading input\n");
@@ -59,8 +55,9 @@ void read_input(InputBuffer *input_buffer) {
 }
 
 PrepareResult prepare_insert(InputBuffer *input_buffer, Statement *statement) {
-  /* 单独检验insert语句中各子语句的长度，
+  /* 单独检验insert语句中各子语句的正确性，
    *如果过长，就返回错误。
+   *如果非法如id<0，就返回错误。
    */
   statement->type = STATEMENT_INSERT;
   char *keyword = strtok(input_buffer->buffer, " ");
@@ -89,6 +86,9 @@ PrepareResult prepare_insert(InputBuffer *input_buffer, Statement *statement) {
 
 PrepareResult prepare_statement(InputBuffer *input_buffer,
                                 Statement *statement) {
+  /*
+   *判断预处理的状态(insert select)
+   */
 
   /* 如果之前的状态是insert 那么statement的type 变为STATEMENT_INSERT
    *并返回PREPARE_SUCCESS
@@ -136,7 +136,7 @@ MetaCommandResult do_meta_command(InputBuffer *input_buffer, Table *table) {
     exit(0);
   } else if (strcmp(input_buffer->buffer, ".btree") == 0) {
     printf("Tree:\n");
-    print_tree(table->pager,0,0);
+    print_tree(table->pager, 0, 0);
     return META_COMMAND_SUCCESS;
   } else if (strcmp(input_buffer->buffer, ".constants") == 0) {
     printf("Constants:\n");
@@ -149,27 +149,29 @@ MetaCommandResult do_meta_command(InputBuffer *input_buffer, Table *table) {
 }
 
 ExecuteResult execute_insert(Statement *statement, Table *table) {
+  /* 执行插入 */
 
   void *node = get_page(table->pager, table->root_page_num);
-  /* 如果叶节点的单元数量满了 */
+  /* 获取节点上的总单元数量 */
   uint32_t num_cells = *(leaf_node_num_cells(node));
-  /* if ((num_cells >= LEAF_NODE_MAX_CELLS)) {
-    return EXECUTE_TABLE_FULL;
-  } */
+
   /* 获得statement中需要插入的row的信息 */
   Row *row_to_insert = &(statement->row_to_insert);
-  /* 看来是插入到该页的尾部*/
-  // Cursor *cursor = table_end(table);
 
   uint32_t key_to_insert = row_to_insert->id;
+  /*
+  寻找我们需要插入的位置（叶子节点二分找key位置，内部节点二分找key位置且递归）
+   */
   Cursor *cursor = table_find(table, key_to_insert);
+  /* 如果我们需要插入的位置不是节点上的总单元数量(最后一个，肯定不会重复) */
   if (cursor->cell_num < num_cells) {
     uint32_t key_at_index = *leaf_node_key(node, cursor->cell_num);
+    /* 重复则不插入，报错 */
     if (key_at_index == key_to_insert) {
       return EXECUTE_DUPLICATE_KEY;
     }
   }
-
+  /* 执行叶节点的插入 */
   leaf_node_insert(cursor, row_to_insert->id, row_to_insert);
   free(cursor);
   return EXECUTE_SUCCESS;
@@ -177,13 +179,15 @@ ExecuteResult execute_insert(Statement *statement, Table *table) {
 ExecuteResult execute_select(Statement *statement, Table *table) {
   Cursor *cursor = table_start(table);
   Row row;
-  // for (uint32_t i = 0; i < table->num_rows; i++) {
-  //   deserialize_row(row_slot(table, i), &row);
-  //   print_row(&row);
-  // }
+
   while (!(cursor->end_of_table)) {
+    /* 遍历所有叶节点 */
     deserialize_row(cursor_value(cursor), &row);
     print_row(&row);
+    /*
+     将游标向后移动1个cell
+     暂时版本的游标移动只能在同级的叶节点间，因为暂时没有实现多层树结构下的线索b树，父节点还暂时无法分裂
+     */
     cursor_advance(cursor);
   }
   free(cursor);
@@ -201,12 +205,17 @@ ExecuteResult execute_statement(Statement *statement, Table *table) {
 }
 
 int main(int argc, char const *argv[]) {
+  /* 信号屏蔽 */
   signal(SIGINT, SIG_IGN);
-  // Table *table = new_table();
+  signal(SIGQUIT, SIG_IGN);
+
+  /* 必须在命令行输入一个 [./main xxx.db]*/
   if (argc < 2) {
-    printf("Usage:Must supply a datebase filename.\n");
+    printf("Usage:你只输入了程序名，没有输入想要操控的数据库文件。./main "
+           "xxx.db.\n");
     exit(-1);
   }
+
   const char *filename = argv[1];
   Table *table = db_open(filename);
 
@@ -216,7 +225,7 @@ int main(int argc, char const *argv[]) {
     print_prompt();           /* 打印db> */
     read_input(input_buffer); /* 读取整行输入 */
 
-    if (input_buffer->buffer[0] == '.') { /* 如果是.预处理的命令 */
+    if (input_buffer->buffer[0] == '.') { /* 如果是.exit这样的元数据的命令 */
       /* 解析命令 */
       switch (do_meta_command(input_buffer, table)) {
         /* 成功继续 */
@@ -229,7 +238,7 @@ int main(int argc, char const *argv[]) {
       }
     }
 
-    /* 如果不是.预处理的命令了
+    /* 如果不是元数据的命令了
      *检验input_buffer预处理的状态并存储到statement中 */
     Statement statement;
     switch (prepare_statement(input_buffer, &statement)) {
@@ -255,7 +264,8 @@ int main(int argc, char const *argv[]) {
       continue;
     }
 
-    switch (execute_statement(&statement, table)) { /* 根据状态执行相应的行为 */
+      /* 根据状态执行相应的行为 */
+    switch (execute_statement(&statement, table)) {
     case (EXECUTE_SUCCESS):
       printf("Executed.\n");
       break;

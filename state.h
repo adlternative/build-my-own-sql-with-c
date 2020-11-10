@@ -7,7 +7,7 @@
 #include <string.h>
 #include "row.h"
 typedef enum {
-  EXECUTE_SUCCESS,    /* 成功哦你 */
+  EXECUTE_SUCCESS,    /* 成功 */
   EXECUTE_TABLE_FULL, /* 表满 */
   EXECUTE_DUPLICATE_KEY,/* 重复的键（主键:id） */
 } ExecuteResult;      /* 执行的结果 */
@@ -15,7 +15,7 @@ typedef enum {
 typedef enum {
   META_COMMAND_SUCCESS,             /* 元数据成功 */
   META_COMMAND_UNRECOGNIZED_COMMAND /* 元数据错误命令 */
-} MetaCommandResult;                /* .元数据处理 */
+} MetaCommandResult;                /* .元数据处理  .exit .btree .constants*/
 
 typedef enum {
   PREPARE_SUCCESS,                /* 表示预处理的命令成功 */
@@ -32,7 +32,7 @@ typedef enum {
 
 typedef struct {
   StatementType type; /* 一个含有sql语句类型的type */
-  Row row_to_insert;  /* 只使用在insert语句的状态 */
+  Row row_to_insert;  /* 只使用在insert语句的状态行 */
 } Statement;          /* 一个表明状态的结构体 */
 
 #endif

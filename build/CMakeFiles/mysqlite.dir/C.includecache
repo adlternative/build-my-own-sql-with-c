@@ -9,6 +9,8 @@
 /home/adl/桌面/mysqlite/b-tree.c
 b-tree.h
 /home/adl/桌面/mysqlite/b-tree.h
+page_table.h
+/home/adl/桌面/mysqlite/page_table.h
 
 /home/adl/桌面/mysqlite/b-tree.h
 page_table.h
